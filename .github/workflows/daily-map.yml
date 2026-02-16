@@ -46,8 +46,7 @@ jobs:
 
             for (const map of maps) {
               await page.goto(map.url, { waitUntil: 'networkidle2' });
-              // Wait a bit to ensure map renders
-              await page.waitForTimeout(3000);
+              await page.waitForTimeout(3000); // wait for map to render
 
               const fileName = map.name + '.png';
               await page.screenshot({ path: fileName, fullPage: true });
@@ -61,18 +60,22 @@ jobs:
 
             await browser.close();
 
-            // Prepare FormData for webhook
+            // Get today's date in Month Day, Year format
+            const today = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            const dateString = today.toLocaleDateString('en-US', options);
+
             const form = new FormData();
             for (const map of maps) {
               form.append('file', fs.createReadStream(map.name + '.png'));
             }
 
             form.append('payload_json', JSON.stringify({
-              content: "🌿 Daily Rummage Pile Locations!",
+              content: `<@&1472988485920100556> 🌿 Daily Rummage Pile Locations — ${dateString}!`,
               embeds
             }));
 
             await axios.post(process.env.WEBHOOK_URL, form, { headers: form.getHeaders() });
-            console.log("Posted all maps to Discord!");
+            console.log("Posted all maps to Discord with date and role ping!");
           })();
           EOF
