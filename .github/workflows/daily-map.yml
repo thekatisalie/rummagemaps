@@ -34,25 +34,34 @@ jobs:
           const FormData = require('form-data');
 
           const maps = [
-            { name: "kilima", title: "Kilima Valley", url: "https://palia.th.gl/rummage-pile?map=kilima-valley", color: 15158332 },
-            { name: "bahari", title: "Bahari Bay", url: "https://palia.th.gl/rummage-pile?map=bahari-bay", color: 3447003 },
-            { name: "elderwood", title: "Elderwood", url: "https://palia.th.gl/rummage-pile?map=elderwood", color: 5763719 }
+            { name: "kilima", title: "Kilima Valley", selector: 'a[href*="kilima-valley"]', color: 15158332 },
+            { name: "bahari", title: "Bahari Bay", selector: 'a[href*="bahari-bay"]', color: 3447003 },
+            { name: "elderwood", title: "Elderwood", selector: 'a[href*="elderwood"]', color: 5763719 }
           ];
 
           (async () => {
             const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
             const page = await browser.newPage();
+            await page.goto('https://palia.th.gl/rummage-pile', { waitUntil: 'networkidle2' });
 
             const embeds = [];
 
             for (const map of maps) {
-              await page.goto(map.url, { waitUntil: 'networkidle2' });
+              // Click the region tab/link
+              const regionLink = await page.$(map.selector);
+              if (regionLink) {
+                await regionLink.click();
+                await new Promise(resolve => setTimeout(resolve, 3000)); // wait for map to render
+              }
 
-              // Wait for 3 seconds to let the map render
-              await new Promise(resolve => setTimeout(resolve, 3000));
-
+              // Select the map element (canvas or container)
+              const mapElement = await page.$('canvas'); // adjust if the map uses a different element
               const fileName = map.name + '.png';
-              await page.screenshot({ path: fileName, fullPage: true });
+              if (mapElement) {
+                await mapElement.screenshot({ path: fileName });
+              } else {
+                await page.screenshot({ path: fileName, fullPage: true });
+              }
 
               embeds.push({
                 title: map.title,
