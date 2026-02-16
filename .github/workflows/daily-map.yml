@@ -2,7 +2,7 @@ name: Post Daily Palia Maps
 
 on:
   schedule:
-    - cron: "0 14 * * *"   # 8 AM Central (14:00 UTC)
+    - cron: "0 14 * * *" # 8 AM Central
   workflow_dispatch:
 
 jobs:
@@ -13,49 +13,66 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install Chromium
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
 
-      - name: Screenshot Maps and Post to Discord
+      - name: Install dependencies
+        run: |
+          npm install puppeteer axios form-data
+
+      - name: Capture Maps and Post to Discord
         env:
           WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
+          node <<'EOF'
+          const puppeteer = require('puppeteer');
+          const fs = require('fs');
+          const axios = require('axios');
+          const FormData = require('form-data');
 
-          # Kilima
-          curl -L "https://palia.th.gl/rummage-pile?map=kilima-valley" -o kilima.html
-          chromium-browser --headless --disable-gpu --screenshot=kilima.png --window-size=1280,900 kilima.html
+          const maps = [
+            { name: "kilima", title: "Kilima Valley", url: "https://palia.th.gl/rummage-pile?map=kilima-valley", color: 15158332 },
+            { name: "bahari", title: "Bahari Bay", url: "https://palia.th.gl/rummage-pile?map=bahari-bay", color: 3447003 },
+            { name: "elderwood", title: "Elderwood", url: "https://palia.th.gl/rummage-pile?map=elderwood", color: 5763719 }
+          ];
 
-          # Bahari
-          curl -L "https://palia.th.gl/rummage-pile?map=bahari-bay" -o bahari.html
-          chromium-browser --headless --disable-gpu --screenshot=bahari.png --window-size=1280,900 bahari.html
+          (async () => {
+            const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+            const page = await browser.newPage();
 
-          # Elderwood
-          curl -L "https://palia.th.gl/rummage-pile?map=elderwood" -o elderwood.html
-          chromium-browser --headless --disable-gpu --screenshot=elderwood.png --window-size=1280,900 elderwood.html
+            const embeds = [];
 
-          curl -F "file=@kilima.png" \
-               -F "file=@bahari.png" \
-               -F "file=@elderwood.png" \
-               -F 'payload_json={
-                "content": "🌿 Daily Rummage Pile Locations!",
-                "embeds": [
-                  {
-                    "title": "Kilima Valley",
-                    "color": 15158332,
-                    "image": {"url": "attachment://kilima.png"}
-                  },
-                  {
-                    "title": "Bahari Bay",
-                    "color": 3447003,
-                    "image": {"url": "attachment://bahari.png"}
-                  },
-                  {
-                    "title": "Elderwood",
-                    "color": 5763719,
-                    "image": {"url": "attachment://elderwood.png"}
-                  }
-                ]
-               }' \
-               $WEBHOOK_URL
+            for (const map of maps) {
+              await page.goto(map.url, { waitUntil: 'networkidle2' });
+              // Wait a bit to ensure map renders
+              await page.waitForTimeout(3000);
+
+              const fileName = map.name + '.png';
+              await page.screenshot({ path: fileName, fullPage: true });
+
+              embeds.push({
+                title: map.title,
+                color: map.color,
+                image: { url: `attachment://${fileName}` }
+              });
+            }
+
+            await browser.close();
+
+            // Prepare FormData for webhook
+            const form = new FormData();
+            for (const map of maps) {
+              form.append('file', fs.createReadStream(map.name + '.png'));
+            }
+
+            form.append('payload_json', JSON.stringify({
+              content: "🌿 Daily Rummage Pile Locations!",
+              embeds
+            }));
+
+            await axios.post(process.env.WEBHOOK_URL, form, { headers: form.getHeaders() });
+            console.log("Posted all maps to Discord!");
+          })();
+          EOF
