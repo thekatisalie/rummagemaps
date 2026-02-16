@@ -47,7 +47,9 @@ jobs:
 
             for (const map of maps) {
               await page.goto(map.url, { waitUntil: 'networkidle2' });
-              await page.waitForTimeout(3000); // wait for map to render
+
+              // Wait for 3 seconds to let the map render
+              await new Promise(resolve => setTimeout(resolve, 3000));
 
               const fileName = map.name + '.png';
               await page.screenshot({ path: fileName, fullPage: true });
@@ -61,7 +63,7 @@ jobs:
 
             await browser.close();
 
-            // Get today's date in Month Day, Year format
+            // Today's date
             const today = new Date();
             const options = { year: 'numeric', month: 'long', day: 'numeric' };
             const dateString = today.toLocaleDateString('en-US', options);
