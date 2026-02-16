@@ -1,0 +1,61 @@
+name: Post Daily Palia Maps
+
+on:
+  schedule:
+    - cron: "0 14 * * *"   # 8 AM Central (14:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  post-maps:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Chromium
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser
+
+      - name: Screenshot Maps and Post to Discord
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+
+          # Kilima
+          curl -L "https://palia.th.gl/rummage-pile?map=kilima-valley" -o kilima.html
+          chromium-browser --headless --disable-gpu --screenshot=kilima.png --window-size=1280,900 kilima.html
+
+          # Bahari
+          curl -L "https://palia.th.gl/rummage-pile?map=bahari-bay" -o bahari.html
+          chromium-browser --headless --disable-gpu --screenshot=bahari.png --window-size=1280,900 bahari.html
+
+          # Elderwood
+          curl -L "https://palia.th.gl/rummage-pile?map=elderwood" -o elderwood.html
+          chromium-browser --headless --disable-gpu --screenshot=elderwood.png --window-size=1280,900 elderwood.html
+
+          curl -F "file=@kilima.png" \
+               -F "file=@bahari.png" \
+               -F "file=@elderwood.png" \
+               -F 'payload_json={
+                "content": "🌿 Daily Rummage Pile Locations!",
+                "embeds": [
+                  {
+                    "title": "Kilima Valley",
+                    "color": 15158332,
+                    "image": {"url": "attachment://kilima.png"}
+                  },
+                  {
+                    "title": "Bahari Bay",
+                    "color": 3447003,
+                    "image": {"url": "attachment://bahari.png"}
+                  },
+                  {
+                    "title": "Elderwood",
+                    "color": 5763719,
+                    "image": {"url": "attachment://elderwood.png"}
+                  }
+                ]
+               }' \
+               $WEBHOOK_URL
